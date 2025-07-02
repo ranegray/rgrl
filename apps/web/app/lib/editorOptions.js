@@ -1,0 +1,23 @@
+export const editorOptions = {
+  lineNumbers: "on",
+  minimap: { enabled: false },
+  scrollbar: {
+    vertical: "auto",
+    horizontal: "off",
+  },
+  folding: true,
+  lineDecorationsWidth: 2,
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: false,
+  renderLineHighlight: "none",
+  renderIndentGuides: true,
+  highlightActiveIndentGuide: true,
+  renderWhitespace: "none",
+  renderControlCharacters: false,
+  fontSize: 14,
+  fontFamily: "'Fira Code', monospace",
+  cursorStyle: "line",
+  cursorBlinking: "smooth",
+  smoothScrolling: true,
+  scrollBeyondLastLine: false,
+};
