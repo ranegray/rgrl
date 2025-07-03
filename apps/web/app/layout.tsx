@@ -1,34 +1,37 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from "next"
+import { ClerkProvider } from "@clerk/nextjs"
+import { Geist, Geist_Mono } from "next/font/google"
+import "./globals.css"
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+    variable: "--font-geist-sans",
+    subsets: ["latin"],
+})
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+    variable: "--font-geist-mono",
+    subsets: ["latin"],
+})
 
 export const metadata: Metadata = {
-  title: "Click & Whirr | Build real robots. Learn real skills.",
-  description: "Build real robots. Learn real skills.",
-};
+    title: "Click & Whirr | Build real robots. Learn real skills.",
+    description: "Build real robots. Learn real skills.",
+}
 
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode;
+    children: React.ReactNode
 }>) {
-  return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
-  );
+    return (
+        <ClerkProvider>
+            <html lang="en">
+                <body
+                    className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+                >
+                    {children}
+                </body>
+            </html>
+        </ClerkProvider>
+    )
 }
