@@ -75,18 +75,12 @@ export default function Home() {
                             Hands-on interactive lessons with actual robots.
                         </h2>
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto">
-                            <div className="flex w-full sm:w-auto">
-                                <input
-                                    type="email"
-                                    name="email"
-                                    id="email"
-                                    className="flex-1 sm:w-64 border-2 border-gray-200 rounded-l-full px-6 py-3 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
-                                    placeholder="you@awesome.com"
-                                />
-                                <button className="bg-orange-500 text-white px-6 py-3 rounded-r-full hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
-                                    Notify Me
-                                </button>
-                            </div>
+                            <Link
+                                href="/sign-up"
+                                className="w-full sm:w-auto bg-orange-500 text-white px-6 py-3 rounded-full hover:bg-orange-600 hover:text-white transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 text-center"
+                            >
+                                Get Started
+                            </Link>
                             <Link
                                 href="/demo"
                                 className="w-full sm:w-auto border-2 border-orange-500 text-orange-500 px-6 py-3 rounded-full hover:bg-orange-500 hover:text-white transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 text-center"
