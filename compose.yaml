@@ -1,0 +1,13 @@
+services:
+  pybullet:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.pybullet
+  mujoco:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mujoco
+  gazebo:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gazebo
