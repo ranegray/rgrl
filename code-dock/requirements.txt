@@ -1,0 +1,5 @@
+fastapi==0.111.*
+uvicorn[standard]
+pytest
+pytest-json-report
+
