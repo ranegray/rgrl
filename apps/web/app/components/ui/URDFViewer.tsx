@@ -44,6 +44,7 @@ const RobotControls: React.FC<RobotControlsProps> = ({
 
     // Build Leva control schema
     const controlsSchema = React.useMemo(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const schema: Record<string, any> = {
             "Reset Joints": button(resetJoints),
             // "Reset Camera": button() // Placeholder for future camera reset functionality

@@ -3,13 +3,29 @@
 import { useState, useEffect, useRef } from "react"
 import { Terminal as TerminalIcon, Minus, Square } from "lucide-react"
 
-export default function Terminal({ logs, onCommand, isRunning }) {
+interface LogEntry {
+    timestamp?: string
+    type?: "error" | "warning" | "success" | "info"
+    message: string
+}
+
+interface TerminalProps {
+    logs: (string | LogEntry)[]
+    onCommand: (command: string) => void
+    isRunning: boolean
+}
+
+export default function Terminal({
+    logs,
+    onCommand,
+    isRunning,
+}: TerminalProps) {
     const [input, setInput] = useState("")
-    const [history, setHistory] = useState([])
+    const [history, setHistory] = useState<string[]>([])
     const [historyIndex, setHistoryIndex] = useState(-1)
     const [isMinimized, setIsMinimized] = useState(false)
-    const terminalRef = useRef(null)
-    const inputRef = useRef(null)
+    const terminalRef = useRef<HTMLDivElement>(null)
+    const inputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
         if (terminalRef.current) {
@@ -17,11 +33,11 @@ export default function Terminal({ logs, onCommand, isRunning }) {
         }
     }, [logs])
 
-    const handleCommand = (e) => {
+    const handleCommand = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter") {
             e.preventDefault()
             if (input.trim()) {
-                setHistory(prev => [...prev, input])
+                setHistory((prev) => [...prev, input])
                 setHistoryIndex(-1)
                 onCommand?.(input.trim())
                 setInput("")
@@ -29,7 +45,10 @@ export default function Terminal({ logs, onCommand, isRunning }) {
         } else if (e.key === "ArrowUp") {
             e.preventDefault()
             if (history.length > 0) {
-                const newIndex = historyIndex === -1 ? history.length - 1 : Math.max(0, historyIndex - 1)
+                const newIndex =
+                    historyIndex === -1
+                        ? history.length - 1
+                        : Math.max(0, historyIndex - 1)
                 setHistoryIndex(newIndex)
                 setInput(history[newIndex])
             }
@@ -97,25 +116,41 @@ export default function Terminal({ logs, onCommand, isRunning }) {
                         {/* Welcome Message */}
                         <div className="text-gray-400 mb-2">
                             <div>Welcome to Click & Whirr Terminal</div>
-                            <div>Type &lsquo;help&rsquo; for available commands</div>
+                            <div>
+                                Type &lsquo;help&rsquo; for available commands
+                            </div>
                             <div className="border-b border-gray-700 my-2"></div>
                         </div>
 
                         {/* Log Messages */}
-                        {logs.map((log, index) => (
-                            <div key={index} className="mb-1">
-                                <span className="text-gray-500">[{log.timestamp}] </span>
-                                <span className={`${
-                                    log.type === "error" ? "text-red-400" :
-                                    log.type === "warning" ? "text-yellow-400" :
-                                    log.type === "success" ? "text-green-400" :
-                                    log.type === "info" ? "text-blue-400" :
-                                    "text-gray-300"
-                                }`}>
-                                    {log.message}
-                                </span>
-                            </div>
-                        ))}
+                        {logs.map((log, index) => {
+                            const logEntry =
+                                typeof log === "string" ? { message: log } : log
+                            return (
+                                <div key={index} className="mb-1">
+                                    {logEntry.timestamp && (
+                                        <span className="text-gray-500">
+                                            [{logEntry.timestamp}]{" "}
+                                        </span>
+                                    )}
+                                    <span
+                                        className={`${
+                                            logEntry.type === "error"
+                                                ? "text-red-400"
+                                                : logEntry.type === "warning"
+                                                ? "text-yellow-400"
+                                                : logEntry.type === "success"
+                                                ? "text-green-400"
+                                                : logEntry.type === "info"
+                                                ? "text-blue-400"
+                                                : "text-gray-300"
+                                        }`}
+                                    >
+                                        {logEntry.message}
+                                    </span>
+                                </div>
+                            )
+                        })}
 
                         {/* Input Line */}
                         <div className="flex items-center mt-2">
@@ -127,7 +162,11 @@ export default function Terminal({ logs, onCommand, isRunning }) {
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleCommand}
                                 className="flex-1 bg-transparent border-none outline-none text-green-400 font-mono"
-                                placeholder={isRunning ? "Running..." : "Enter command..."}
+                                placeholder={
+                                    isRunning
+                                        ? "Running..."
+                                        : "Enter command..."
+                                }
                                 disabled={isRunning}
                                 autoFocus
                             />

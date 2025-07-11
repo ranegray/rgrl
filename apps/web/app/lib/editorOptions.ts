@@ -1,17 +1,21 @@
-export const editorOptions = {
+import type { editor } from 'monaco-editor';
+
+export const editorOptions: editor.IStandaloneEditorConstructionOptions = {
   lineNumbers: "on",
   minimap: { enabled: false },
   scrollbar: {
     vertical: "auto",
-    horizontal: "off",
+    horizontal: "hidden",
   },
   folding: true,
   lineDecorationsWidth: 2,
   overviewRulerLanes: 0,
   hideCursorInOverviewRuler: false,
   renderLineHighlight: "none",
-  renderIndentGuides: true,
-  highlightActiveIndentGuide: true,
+  guides: {
+    indentation: true,
+    highlightActiveIndentation: true,
+  },
   renderWhitespace: "none",
   renderControlCharacters: false,
   fontSize: 14,

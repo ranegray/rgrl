@@ -94,7 +94,7 @@ async function seed() {
         instructions: "Write a comment in Python listing the three key characteristics of a robot: Sense, Think, Act.",
         initialCode: "# Your list here",
         solutionCode: "# 1. Sense\n# 2. Think\n# 3. Act",
-        validationStrings: JSON.stringify(["Sense", "Think", "Act"]),
+        validationStrings: ["Sense", "Think", "Act"],
       },
     ]);
 
@@ -117,7 +117,7 @@ async function seed() {
         instructions: "Create string variables for the following components: `sensor`, `actuator`, `controller`.",
         initialCode: "# Define your variables",
         solutionCode: "sensor = 'camera'\nactuator = 'motor'\ncontroller = 'raspberry pi'",
-        validationStrings: JSON.stringify(["sensor", "actuator", "controller"]),
+        validationStrings: ["sensor", "actuator", "controller"],
       },
     ]);
 
@@ -151,7 +151,7 @@ async function seed() {
         instructions: "Given a 2-link planar arm with link lengths l1=10 and l2=5, and joint angles theta1=0.5 rad and theta2=0.2 rad, calculate the (x, y) position of the end-effector. Use the `math` library.",
         initialCode: "import math\n\nl1 = 10\nl2 = 5\ntheta1 = 0.5\ntheta2 = 0.2\n\n# Your code here\n# x = ...\n# y = ...\n\n# print(f'x: {x}, y: {y}')",
         solutionCode: "import math\n\nl1 = 10\nl2 = 5\ntheta1 = 0.5\ntheta2 = 0.2\n\nx = l1 * math.cos(theta1) + l2 * math.cos(theta1 + theta2)\ny = l1 * math.sin(theta1) + l2 * math.sin(theta1 + theta2)\n\nprint(f'x: {x}, y: {y}')",
-        validationStrings: JSON.stringify(["13.62", "8.28"]),
+        validationStrings: ["13.62", "8.28"],
       },
     ]);
 
@@ -185,7 +185,7 @@ async function seed() {
         instructions: "Imagine you have an RGB pixel with values (R=50, G=100, B=150). Calculate the grayscale value using the luminosity method: 0.299*R + 0.587*G + 0.114*B. Print the result.",
         initialCode: "R = 50\nG = 100\nB = 150\n\n# Calculate and print the grayscale value",
         solutionCode: "R = 50\nG = 100\nB = 150\n\ngrayscale = 0.299*R + 0.587*G + 0.114*B\nprint(grayscale)",
-        validationStrings: JSON.stringify(["90.75"]),
+        validationStrings: ["90.75"],
       },
     ]);
 
@@ -196,8 +196,13 @@ async function seed() {
   }
 }
 
-// Run the seed function
-seed().catch((error) => {
-  console.error('Failed to seed database:', error);
-  process.exit(1);
-});
+// Export seed function for explicit use
+export { seed };
+
+// Only run seed if this file is executed directly (not imported)
+if (require.main === module) {
+  seed().catch((error) => {
+    console.error('Failed to seed database:', error);
+    process.exit(1);
+  });
+}

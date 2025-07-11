@@ -109,19 +109,15 @@ if __name__ == '__main__':
 
 export default function DemoPage() {
     const [code, setCode] = useState(mockExercise.code)
-    const [logs, setLogs] = useState<string[]>([
-        "Ready to run robot wave demo...",
-    ])
-    const [isRunning, setIsRunning] = useState(false)
-    const [jointPositions, setJointPositions] = useState<{
+    const [logs] = useState<string[]>(["Ready to run robot wave demo..."])
+    const [isRunning] = useState(false)
+    const [jointPositions] = useState<{
         [key: string]: number
     }>({})
 
     const handleTerminalCommand = () => {}
 
-    const handleRun = async () => {
-
-    }
+    const handleRun = async () => {}
 
     return (
         <main className="h-screen bg-gradient-to-br from-slate-50 to-orange-50 flex flex-col">
