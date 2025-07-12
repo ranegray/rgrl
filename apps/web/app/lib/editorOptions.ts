@@ -24,4 +24,5 @@ export const editorOptions: editor.IStandaloneEditorConstructionOptions = {
   cursorBlinking: "smooth",
   smoothScrolling: true,
   scrollBeyondLastLine: false,
+  wordWrap: "on"
 };
