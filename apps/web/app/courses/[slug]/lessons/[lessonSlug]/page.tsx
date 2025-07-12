@@ -13,16 +13,29 @@ export default async function LessonPage({
     params: Promise<{ slug: string; lessonSlug: string }>
 }) {
     const { lessonSlug } = await params
-    const [lesson] = await db
-        .select()
-        .from(lessons)
-        .where(and(eq(lessons.slug, lessonSlug)))
-        .limit(1)
-    const lessonSteps = await db
-        .select()
-        .from(steps)
-        .where(eq(steps.lessonId, lesson.id))
-        .orderBy(steps.orderIndex)
+
+    let lesson: typeof lessons.$inferSelect | null = null
+    let lessonSteps: (typeof steps.$inferSelect)[] = []
+
+    try {
+        [lesson] = await db
+            .select()
+            .from(lessons)
+            .where(and(eq(lessons.slug, lessonSlug)))
+            .limit(1)
+        
+        if (!lesson) {
+            throw new Error(`Lesson with slug ${lessonSlug} not found`)
+        }
+        
+        lessonSteps = await db
+            .select()
+            .from(steps)
+            .where(eq(steps.lessonId, lesson.id))
+            .orderBy(steps.orderIndex)
+    } catch (error) {
+        console.error("Error fetching lesson data:", error)
+    }
 
     // This is a simplified example. You'll need to handle state for the IDE and terminal.
     // const [code, setCode] = useState(lessonSteps[0]?.initialCode || "");
@@ -32,9 +45,9 @@ export default async function LessonPage({
             <div className="w-1/3">
                 {/* You can adapt the LessonPane to show the steps */}
                 {/* <LessonPane exercise={lesson} /> */}
-                <h2>{lesson.title}</h2>
+                <h2>{lesson?.title}</h2>
                 <div
-                    dangerouslySetInnerHTML={{ __html: lesson.content || "" }}
+                    dangerouslySetInnerHTML={{ __html: lesson?.content || "" }}
                 />
                 <h3>Steps:</h3>
                 <ul>

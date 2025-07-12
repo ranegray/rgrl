@@ -1,16 +1,19 @@
 // app/courses/page.tsx
-import { db } from "@/app/lib/db";
-import { courses } from "@/app/lib/db/schema";
+import { db } from "@/app/lib/db"
+import { courses, type CourseSelect } from "@/app/lib/db/schema"
 // import { eq } from "drizzle-orm";
-import { SignedOut } from "@clerk/nextjs";
-import Link from "next/link";
-import { BookOpen, Clock, Users, ArrowRight } from "lucide-react";
+import { SignedOut } from "@clerk/nextjs"
+import Link from "next/link"
+import { BookOpen, Clock, Users, ArrowRight } from "lucide-react"
 
 export default async function CoursesPage() {
-    // Fetch all published courses
-    const publishedCourses = await db
-        .select()
-        .from(courses);
+    let publishedCourses: CourseSelect[] = []
+    try {
+        // Fetch all published courses
+        publishedCourses = await db.select().from(courses)
+    } catch (error) {
+        console.error("Error fetching courses:", error)
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
@@ -21,7 +24,8 @@ export default async function CoursesPage() {
                         Robotics Courses
                     </h1>
                     <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-                        Master robotics through hands-on learning. From beginner-friendly introductions to advanced projects, 
+                        Master robotics through hands-on learning. From
+                        beginner-friendly introductions to advanced projects,
                         build real skills with real robots.
                     </p>
                 </div>
@@ -33,11 +37,9 @@ export default async function CoursesPage() {
                             <BookOpen className="h-6 w-6 text-orange-600" />
                         </div>
                         <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                            {publishedCourses.length}
+                            {publishedCourses?.length}
                         </h3>
-                        <p className="text-gray-600">
-                            Available Courses
-                        </p>
+                        <p className="text-gray-600">Available Courses</p>
                     </div>
                     <div className="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-200 text-center hover:shadow-xl transition-shadow">
                         <div className="bg-green-100 p-3 rounded-full w-fit mx-auto mb-4">
@@ -46,9 +48,7 @@ export default async function CoursesPage() {
                         <h3 className="text-2xl font-bold text-gray-900 mb-2">
                             Beginner
                         </h3>
-                        <p className="text-gray-600">
-                            Friendly Learning
-                        </p>
+                        <p className="text-gray-600">Friendly Learning</p>
                     </div>
                     <div className="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-200 text-center hover:shadow-xl transition-shadow">
                         <div className="bg-blue-100 p-3 rounded-full w-fit mx-auto mb-4">
@@ -57,9 +57,7 @@ export default async function CoursesPage() {
                         <h3 className="text-2xl font-bold text-gray-900 mb-2">
                             Interactive
                         </h3>
-                        <p className="text-gray-600">
-                            Hands-On Projects
-                        </p>
+                        <p className="text-gray-600">Hands-On Projects</p>
                     </div>
                 </div>
 
@@ -68,7 +66,7 @@ export default async function CoursesPage() {
                     <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
                         Start Your Robotics Journey
                     </h2>
-                    
+
                     {publishedCourses.length > 0 ? (
                         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
                             {publishedCourses.map((course) => (
@@ -86,11 +84,11 @@ export default async function CoursesPage() {
                                             </h3>
                                         </div>
                                     </div>
-                                    
+
                                     <p className="text-gray-600 mb-6 leading-relaxed">
                                         {course.description}
                                     </p>
-                                    
+
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4 text-sm text-gray-500">
                                             <div className="flex items-center gap-1">
@@ -122,8 +120,8 @@ export default async function CoursesPage() {
                                 No Courses Available Yet
                             </h3>
                             <p className="text-gray-600 text-lg mb-8 max-w-md mx-auto">
-                                We&apos;re working hard to bring you amazing robotics courses. 
-                                Check back soon for updates!
+                                We&apos;re working hard to bring you amazing
+                                robotics courses. Check back soon for updates!
                             </p>
                             <Link
                                 href="/dashboard"
@@ -143,7 +141,8 @@ export default async function CoursesPage() {
                             Ready to Build Your First Robot?
                         </h2>
                         <p className="text-xl mb-6 opacity-90">
-                            Join thousands of students learning robotics the hands-on way
+                            Join thousands of students learning robotics the
+                            hands-on way
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                             <Link
@@ -163,5 +162,5 @@ export default async function CoursesPage() {
                 </SignedOut>
             </div>
         </div>
-    );
+    )
 }

@@ -11,16 +11,29 @@ export default async function CoursePage({
     params: Promise<{ slug: string }>
 }) {
     const { slug } = await params
-    const [course] = await db
-        .select()
-        .from(courses)
-        .where(eq(courses.slug, slug))
-        .limit(1)
-    const courseLessons = await db
-        .select()
-        .from(lessons)
-        .where(eq(lessons.courseId, course.id))
-        .orderBy(lessons.orderIndex)
+
+    let course: typeof courses.$inferSelect | null = null
+    let courseLessons: (typeof lessons.$inferSelect)[] = []
+
+    try {
+        ;[course] = await db
+            .select()
+            .from(courses)
+            .where(eq(courses.slug, slug))
+            .limit(1)
+
+        if (!course) {
+            throw new Error("Course not found")
+        }
+
+        courseLessons = await db
+            .select()
+            .from(lessons)
+            .where(eq(lessons.courseId, course.id))
+            .orderBy(lessons.orderIndex)
+    } catch (error) {
+        console.error("Error fetching course data:", error)
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
@@ -33,10 +46,10 @@ export default async function CoursePage({
                         </div>
                         <div className="flex-1">
                             <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                                {course.title}
+                                {course?.title}
                             </h1>
                             <p className="text-lg text-gray-600 mb-6 leading-relaxed">
-                                {course.description}
+                                {course?.description}
                             </p>
 
                             {/* Course Stats */}
@@ -70,7 +83,7 @@ export default async function CoursePage({
                             {courseLessons.map((lesson, index) => (
                                 <Link
                                     key={lesson.id}
-                                    href={`/courses/${course.slug}/lessons/${lesson.slug}`}
+                                    href={`/courses/${course?.slug}/lessons/${lesson.slug}`}
                                     className="block bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-orange-200 transition-all duration-200 group"
                                 >
                                     <div className="flex items-center gap-4">
