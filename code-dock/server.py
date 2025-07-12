@@ -61,8 +61,10 @@ class ConnectionManager:
             for connection in self.active_connections:
                 try:
                     await connection.send_text(message)
-                except:
+                except WebSocketDisconnect:
                     disconnected.append(connection)
+                except Exception as e:
+                    print(f"Error sending message: {e}")
 
             # Remove disconnected connections
             for conn in disconnected:
