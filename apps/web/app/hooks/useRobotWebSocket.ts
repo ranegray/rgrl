@@ -9,7 +9,7 @@ interface JointState {
 
 interface WebSocketMessage {
   type: 'stdout' | 'stderr' | 'joint_state' | 'execution_start' | 'execution_complete' | 'error' | 'test_start'
-  data: any
+  data: string | JointState
   timestamp: number
 }
 
@@ -18,7 +18,7 @@ interface UseRobotWebSocketReturn {
   connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error'
   logs: string[]
   jointPositions: JointState
-  executeCode: (code: string, stdin?: string) => Promise<any>
+  executeCode: (code: string, stdin?: string) => Promise<{ success: boolean; output?: string; error?: string }>
   clearLogs: () => void
   isRunning: boolean
   lastError: string | null
@@ -34,7 +34,7 @@ export function useRobotWebSocket(serverUrl: string = 'ws://localhost:8080'): Us
   const [lastError, setLastError] = useState<string | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttempts = useRef(0)
   const maxReconnectAttempts = 5
 
@@ -77,11 +77,13 @@ export function useRobotWebSocket(serverUrl: string = 'ws://localhost:8080'): Us
 
           switch (message.type) {
             case 'stdout':
-              addLog(message.data)
+              if (typeof message.data === 'string') {
+                addLog(message.data)
+              }
               break
 
             case 'stderr':
-              if (message.data.trim()) {
+              if (typeof message.data === 'string' && message.data.trim()) {
                 addLog(message.data, 'error')
               }
               break
@@ -91,30 +93,39 @@ export function useRobotWebSocket(serverUrl: string = 'ws://localhost:8080'): Us
               console.log('🔥 WebSocket received joint_state:', message.data)
 
               // Immediately update joint positions - let React handle the timing
-              setJointPositions(message.data)
-              console.log('🔥 Updated jointPositions state to:', message.data)
-
-              addLog(`Joint update: ${Object.keys(message.data).length} joints`, 'info')
+              if (typeof message.data === 'object' && message.data !== null) {
+                setJointPositions(message.data as JointState)
+                console.log('🔥 Updated jointPositions state to:', message.data)
+                addLog(`Joint update: ${Object.keys(message.data as JointState).length} joints`, 'info')
+              }
               break
 
             case 'execution_start':
               setIsRunning(true)
-              addLog(message.data, 'info')
+              if (typeof message.data === 'string') {
+                addLog(message.data, 'info')
+              }
               break
 
             case 'execution_complete':
               setIsRunning(false)
-              addLog(message.data, 'success')
+              if (typeof message.data === 'string') {
+                addLog(message.data, 'success')
+              }
               break
 
             case 'error':
               setIsRunning(false)
-              addLog(message.data, 'error')
-              setLastError(message.data)
+              if (typeof message.data === 'string') {
+                addLog(message.data, 'error')
+                setLastError(message.data)
+              }
               break
 
             case 'test_start':
-              addLog(message.data, 'info')
+              if (typeof message.data === 'string') {
+                addLog(message.data, 'info')
+              }
               break
 
             default:
@@ -177,7 +188,7 @@ export function useRobotWebSocket(serverUrl: string = 'ws://localhost:8080'): Us
     setConnectionStatus('disconnected')
   }, [])
 
-  const executeCode = useCallback(async (code: string, stdin: string = ''): Promise<any> => {
+  const executeCode = useCallback(async (code: string, stdin: string = ''): Promise<{ success: boolean; output?: string; error?: string }> => {
     try {
       if (!isConnected) {
         throw new Error('Not connected to robot server')

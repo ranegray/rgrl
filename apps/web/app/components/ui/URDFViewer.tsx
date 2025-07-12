@@ -8,7 +8,7 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
 import URDFLoader, { URDFRobot } from "urdf-loader"
 import { useControls, Leva, button } from "leva"
 
-// TODO: Refactore this to use a more modular approach
+// TODO: Refactor this to use a more modular approach
 
 interface RobotControlsProps {
     robot: URDFRobot | null

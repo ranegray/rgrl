@@ -114,14 +114,12 @@ export default function DemoPage() {
 
     // Use the WebSocket hook for real-time robot control
     const {
-        isConnected,
         connectionStatus,
         logs,
         jointPositions,
         executeCode,
         clearLogs,
         isRunning,
-        lastError,
         sendJointPositionConfirmation,
     } = useRobotWebSocket()
 
