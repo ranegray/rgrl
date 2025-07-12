@@ -3,11 +3,25 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.pybullet
+  
   mujoco:
     build:
       context: .
       dockerfile: docker/Dockerfile.mujoco
+  
   gazebo:
     build:
       context: .
       dockerfile: docker/Dockerfile.gazebo
+    ports:
+      - "8080:8080"   # gzweb (if using classic)
+      - "9002:9002"   # Modern Gazebo websocket
+      - "9090:9090"   # ROS bridge websocket
+      - "11345:11345" # Gazebo transport
+    environment:
+      - ROS_DOMAIN_ID=0
+      - DISPLAY=${DISPLAY:-:0}
+    # For GUI access (optional)
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    network_mode: host  # For easier ROS2 communication

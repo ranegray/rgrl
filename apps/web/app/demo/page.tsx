@@ -6,7 +6,8 @@ import IDE from "../components/ui/IDE"
 import Terminal from "../components/ui/Terminal"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
 import { useState, useCallback } from "react"
-import URDFViewer from "../components/ui/URDFViewer"
+// import URDFViewer from "../components/ui/URDFViewer"
+import GazeboViewer from "../components/ui/GazeboViewer"
 import { useRobotWebSocket } from "../hooks/useRobotWebSocket"
 
 const mockExercise = {
@@ -225,12 +226,13 @@ export default function DemoPage() {
                                 onCommand={handleTerminalCommand}
                                 isRunning={isRunning}
                             />
-                            <URDFViewer
+                            {/* <URDFViewer
                                 jointPositions={jointPositions}
                                 onJointPositionsChanged={
                                     sendJointPositionConfirmation
                                 }
-                            />
+                            /> */}
+                            <GazeboViewer />
                         </div>
                     </Panel>
                 </PanelGroup>

@@ -1,18 +1,31 @@
-FROM osrf/ros:humble-desktop-full
+FROM gazebo:gzserver11
 
-RUN curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+# Install necessary packages for gzweb, including git and build tools
+RUN apt-get update && apt-get install -y \
+    git \
+    nodejs \
+    npm \
+    build-essential \
+    cmake \
+    pkg-config \
+    libgazebo11-dev \
+    libjansson-dev \
+    libtinyxml-dev \
+    libboost-dev \
+    imagemagick \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    curl lsb-release gnupg \
-    gz-harmonic && \
-    rm -rf /var/lib/apt/lists/*
+# Install gzweb and build gzbridge
+RUN git clone https://github.com/osrf/gzweb.git /root/gzweb && \
+    cd /root/gzweb && \
+    npm install && \
+    npm run deploy
 
-COPY docker/entrypoint.sh /usr/local/bin/
-COPY worlds/empty.world /sim/
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Expose ports for Gazebo and gzweb
+EXPOSE 11345 8080 7681
 
-WORKDIR /sim
-ENTRYPOINT ["entrypoint.sh"]
-CMD ["gz", "sim", "-v", "4", "empty.world", "-s"]
+# Set the working directory
+WORKDIR /root/gzweb
+
+# Start gzweb
+CMD ["npm", "start"]
