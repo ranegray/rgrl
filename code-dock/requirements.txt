@@ -1,5 +1,5 @@
 fastapi==0.111.*
 uvicorn[standard]
+websockets
 pytest
 pytest-json-report
-

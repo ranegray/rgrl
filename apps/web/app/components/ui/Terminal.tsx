@@ -78,9 +78,9 @@ export default function Terminal({
     }
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg m-2 overflow-hidden flex flex-col h-full">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-lg m-2 overflow-hidden flex flex-col h-[50vh]">
             {/* Terminal Header */}
-            <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-3 border-b flex items-center justify-between">
+            <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-3 border-b flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center">
                     <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
                     <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
@@ -105,88 +105,76 @@ export default function Terminal({
             </div>
 
             {/* Terminal Content */}
-            {!isMinimized && (
-                <div className="flex-1 flex flex-col bg-gray-900 text-green-400 font-mono text-sm overflow-hidden">
-                    {/* Output Area */}
-                    <div
-                        ref={terminalRef}
-                        className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"
-                        onClick={focusInput}
-                    >
-                        {/* Welcome Message */}
-                        <div className="text-gray-400 mb-2">
-                            <div>Welcome to Click & Whirr Terminal</div>
-                            <div>
-                                Type &lsquo;help&rsquo; for available commands
-                            </div>
-                            <div className="border-b border-gray-700 my-2"></div>
+            <div className="flex-1 flex flex-col bg-gray-900 text-green-400 font-mono text-sm min-h-0">
+                {/* Output Area */}
+                <div
+                    ref={terminalRef}
+                    className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 min-h-0"
+                    onClick={focusInput}
+                >
+                    {/* Welcome Message */}
+                    <div className="text-gray-400 mb-2">
+                        <div>Welcome to Click & Whirr Terminal</div>
+                        <div>
+                            Type &lsquo;help&rsquo; for available commands
                         </div>
-
-                        {/* Log Messages */}
-                        {logs.map((log, index) => {
-                            const logEntry =
-                                typeof log === "string" ? { message: log } : log
-                            return (
-                                <div key={index} className="mb-1">
-                                    {logEntry.timestamp && (
-                                        <span className="text-gray-500">
-                                            [{logEntry.timestamp}]{" "}
-                                        </span>
-                                    )}
-                                    <span
-                                        className={`${
-                                            logEntry.type === "error"
-                                                ? "text-red-400"
-                                                : logEntry.type === "warning"
-                                                ? "text-yellow-400"
-                                                : logEntry.type === "success"
-                                                ? "text-green-400"
-                                                : logEntry.type === "info"
-                                                ? "text-blue-400"
-                                                : "text-gray-300"
-                                        }`}
-                                    >
-                                        {logEntry.message}
-                                    </span>
-                                </div>
-                            )
-                        })}
-
-                        {/* Input Line */}
-                        <div className="flex items-center mt-2">
-                            <span className="text-green-400 mr-2">$</span>
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={handleCommand}
-                                className="flex-1 bg-transparent border-none outline-none text-green-400 font-mono"
-                                placeholder={
-                                    isRunning
-                                        ? "Running..."
-                                        : "Enter command..."
-                                }
-                                disabled={isRunning}
-                                autoFocus
-                            />
-                            {isRunning && (
-                                <div className="ml-2 flex items-center">
-                                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                                </div>
-                            )}
-                        </div>
+                        <div className="border-b border-gray-700 my-2"></div>
                     </div>
-                </div>
-            )}
 
-            {/* Minimized State */}
-            {isMinimized && (
-                <div className="bg-gray-100 p-4 text-center text-gray-500">
-                    <TerminalIcon className="w-8 h-8 mx-auto mb-2" />
-                    <p className="text-sm">Terminal minimized</p>
+                    {/* Log Messages */}
+                    {logs.map((log, index) => {
+                        const logEntry =
+                            typeof log === "string" ? { message: log } : log
+                        return (
+                            <div key={index} className="mb-1">
+                                {logEntry.timestamp && (
+                                    <span className="text-gray-500">
+                                        [{logEntry.timestamp}]{" "}
+                                    </span>
+                                )}
+                                <span
+                                    className={`${
+                                        logEntry.type === "error"
+                                            ? "text-red-400"
+                                            : logEntry.type === "warning"
+                                            ? "text-yellow-400"
+                                            : logEntry.type === "success"
+                                            ? "text-green-400"
+                                            : logEntry.type === "info"
+                                            ? "text-blue-400"
+                                            : "text-gray-300"
+                                    }`}
+                                >
+                                    {logEntry.message}
+                                </span>
+                            </div>
+                        )
+                    })}
                 </div>
-            )}
+
+                {/* Input Line - Fixed at bottom */}
+                <div className="flex items-center p-4 pt-2 border-t border-gray-700 flex-shrink-0 bg-gray-900">
+                    <span className="text-green-400 mr-2">$</span>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleCommand}
+                        className="flex-1 bg-transparent border-none outline-none text-green-400 font-mono"
+                        placeholder={
+                            isRunning ? "Running..." : "Enter command..."
+                        }
+                        disabled={isRunning}
+                        autoFocus
+                    />
+                    {isRunning && (
+                        <div className="ml-2 flex items-center">
+                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
