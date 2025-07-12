@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react"
 import * as THREE from "three"
-import { Canvas, useThree } from "@react-three/fiber"
+import { Canvas, useThree, useFrame } from "@react-three/fiber"
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei"
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
 import URDFLoader, { URDFRobot } from "urdf-loader"
@@ -91,9 +91,12 @@ const RobotControls: React.FC<RobotControlsProps> = ({
 const URDFRobotViewer: React.FC<{
     robot: URDFRobot | null
     jointValues: { [key: string]: number }
-}> = ({ robot, jointValues }) => {
+    animationSpeed?: number
+}> = ({ robot, jointValues, animationSpeed = 0.08 }) => {
     const { scene } = useThree()
     const robotRef = useRef<URDFRobot | null>(null)
+    const currentJointValues = useRef<{ [key: string]: number }>({})
+    const targetJointValues = useRef<{ [key: string]: number }>({})
 
     useEffect(() => {
         if (robot && robot !== robotRef.current) {
@@ -113,18 +116,59 @@ const URDFRobotViewer: React.FC<{
         }
     }, [robot, scene])
 
+    // Update target positions when new joint values arrive
     useEffect(() => {
-        if (robotRef.current?.joints) {
-            Object.entries(jointValues).forEach(([jointName, value]) => {
-                try {
-                    robotRef.current!.setJointValue(jointName, value)
-                } catch {
-                    // Joint might not exist
-                }
-            })
-            robotRef.current.updateMatrixWorld(true)
+        if (Object.keys(jointValues).length > 0) {
+            console.log("🎯 Setting new target positions:", jointValues)
+            targetJointValues.current = { ...jointValues }
+
+            // Initialize current values if not set
+            if (Object.keys(currentJointValues.current).length === 0) {
+                currentJointValues.current = { ...jointValues }
+            }
         }
     }, [jointValues])
+
+    // Smooth animation using useFrame
+    useFrame(() => {
+        if (
+            robotRef.current?.joints &&
+            Object.keys(targetJointValues.current).length > 0
+        ) {
+            let hasMovement = false
+
+            Object.entries(targetJointValues.current).forEach(
+                ([jointName, targetValue]) => {
+                    const currentValue =
+                        currentJointValues.current[jointName] || 0
+                    const difference = targetValue - currentValue
+
+                    if (Math.abs(difference) > 0.001) {
+                        // Small threshold to avoid infinite tiny movements
+                        hasMovement = true
+                        const newValue =
+                            currentValue + difference * animationSpeed
+                        currentJointValues.current[jointName] = newValue
+
+                        try {
+                            if (robotRef.current!.joints[jointName]) {
+                                robotRef.current!.setJointValue(
+                                    jointName,
+                                    newValue
+                                )
+                            }
+                        } catch (err) {
+                            console.log(`❌ Error setting ${jointName}:`, err)
+                        }
+                    }
+                }
+            )
+
+            if (hasMovement) {
+                robotRef.current.updateMatrixWorld(true)
+            }
+        }
+    })
 
     return null
 }
@@ -133,12 +177,16 @@ interface URDFViewerProps {
     urdfUrl?: string
     className?: string
     jointPositions?: { [key: string]: number }
+    onJointPositionsChanged?: (positions: { [key: string]: number }) => void
+    animationSpeed?: number // Add animation speed control
 }
 
 const URDFViewer: React.FC<URDFViewerProps> = ({
     urdfUrl = "/assets/robots/so101/so101_new_calib.urdf",
     className = "",
     jointPositions = {},
+    onJointPositionsChanged,
+    animationSpeed = 0.08, // Default smooth animation speed
 }) => {
     const [robot, setRobot] = useState<URDFRobot | null>(null)
     const [jointValues, setJointValues] = useState<{ [key: string]: number }>(
@@ -160,20 +208,28 @@ const URDFViewer: React.FC<URDFViewerProps> = ({
             new STLLoader(manager).load(
                 fullPath,
                 (geometry) => {
+                    // Enhanced material with better appearance
                     const material = new THREE.MeshPhongMaterial({
-                        color: 0x888888,
+                        color: 0x2563eb, // Blue robot color
+                        shininess: 30,
+                        specular: 0x111111,
                     })
                     const mesh = new THREE.Mesh(geometry, material)
+                    mesh.castShadow = true
+                    mesh.receiveShadow = true
                     onComplete(mesh)
                 },
                 undefined,
                 () => {
-                    // Fallback red cube
-                    const geometry = new THREE.BoxGeometry(0.05, 0.05, 0.05)
+                    // Enhanced fallback with better visibility
+                    const geometry = new THREE.BoxGeometry(0.08, 0.08, 0.08)
                     const material = new THREE.MeshPhongMaterial({
-                        color: 0xff0000,
+                        color: 0xef4444, // Red fallback
+                        transparent: true,
+                        opacity: 0.8,
                     })
                     const mesh = new THREE.Mesh(geometry, material)
+                    mesh.castShadow = true
                     onComplete(mesh)
                 }
             )
@@ -229,12 +285,51 @@ const URDFViewer: React.FC<URDFViewerProps> = ({
 
     useEffect(() => {
         if (Object.keys(jointPositions).length > 0) {
-            setJointValues((prev) => ({ ...prev, ...jointPositions }))
+            console.log(
+                "📥 URDFViewer received jointPositions:",
+                jointPositions
+            )
+            setJointValues((prev) => {
+                const newValues = { ...prev, ...jointPositions }
+                console.log("🔄 URDFViewer final jointValues:", newValues)
+
+                // Notify parent component that positions have been updated
+                if (onJointPositionsChanged) {
+                    // Use setTimeout to ensure the visual update happens first
+                    setTimeout(() => {
+                        onJointPositionsChanged(newValues)
+                    }, 16) // Next animation frame
+                }
+
+                return newValues
+            })
         }
-    }, [jointPositions])
+    }, [jointPositions, onJointPositionsChanged])
 
     return (
-        <div className={`relative h-full ${className}`}>
+        <div className={`relative h-[50vh] ${className}`}>
+            {/* Robot Status Indicator */}
+            <div className="absolute top-2 left-2 z-50 bg-black/70 text-white px-3 py-1 rounded-lg text-sm">
+                <div className="flex items-center gap-2">
+                    <div
+                        className={`w-2 h-2 rounded-full ${
+                            isLoading
+                                ? "bg-yellow-500 animate-pulse"
+                                : isRobotReady
+                                ? "bg-green-500"
+                                : "bg-red-500"
+                        }`}
+                    ></div>
+                    <span>
+                        {isLoading
+                            ? "Loading Robot..."
+                            : isRobotReady
+                            ? "Robot Ready"
+                            : "Robot Error"}
+                    </span>
+                </div>
+            </div>
+
             <div className="absolute top-0 right-0 z-100">
                 {isRobotReady &&
                     robot &&
@@ -247,23 +342,40 @@ const URDFViewer: React.FC<URDFViewerProps> = ({
                     )}
             </div>
 
-            <Canvas camera={{ position: [-5.5, 3.5, 5.5], fov: 50 }}>
-                <ambientLight intensity={0.4} />
-                <directionalLight position={[10, 10, 5]} intensity={1} />
-                <gridHelper args={[10, 10]} />
+            <Canvas camera={{ position: [-1.2, 1.0, 1.5], fov: 50 }}>
+                {/* Enhanced Lighting Setup */}
+                <ambientLight intensity={0.3} />
+                <directionalLight
+                    position={[5, 5, 5]}
+                    intensity={0.8}
+                    castShadow
+                    shadow-mapSize-width={2048}
+                    shadow-mapSize-height={2048}
+                />
+                <directionalLight position={[-5, 5, -5]} intensity={0.4} />
+                <pointLight position={[0, 3, 0]} intensity={0.3} />
+
+                {/* Grid with better styling */}
+                <gridHelper args={[2, 20]} position={[0, 0, 0]} />
+
                 <PerspectiveCamera
                     makeDefault
                     fov={60}
-                    position={[0.5, 0.5, 0.5]}
+                    position={[-1.2, 1.0, 1.5]}
                 />
                 <OrbitControls
                     enablePan
                     enableZoom
                     enableRotate
-                    minDistance={0.25}
-                    maxDistance={2}
+                    minDistance={0.5}
+                    maxDistance={5}
+                    target={[0, 0.3, 0]} // Focus on robot center
                 />
-                <URDFRobotViewer robot={robot} jointValues={jointValues} />
+                <URDFRobotViewer
+                    robot={robot}
+                    jointValues={jointValues}
+                    animationSpeed={animationSpeed}
+                />
             </Canvas>
 
             {isLoading && (
