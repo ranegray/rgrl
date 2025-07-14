@@ -55,3 +55,10 @@ curl -X POST "$SERVICE_URL/execute" \
      -d '{"code":"print(\"Python code ran in container.\")","stdin":"","tests":null}'
 
 Remove container with delete-dock.sh
+
+For sending an entire file:
+
+FILE="myprog.py"
+curl -X POST "$SERVICE_URL/execute" \
+     -H "Content-Type: application/json" \
+     --data "$(jq -Rs --arg stdin '' '{code: ., stdin: $stdin, tests: null}' < "$FILE")"

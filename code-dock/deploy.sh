@@ -21,6 +21,7 @@ docker buildx build --platform linux/amd64 -t \
 echo "▶ Deploying Cloud Run service $SERVICE_NAME…"
 gcloud run deploy code-dock \
   --image us-docker.pkg.dev/$PROJECT_ID/${REPO_ID}/${IMAGE_NAME}:latest \
+  --allow-unauthenticated \
   --region ${REGION_NAME}
 
 echo "▶ Connecting and running Python code..."

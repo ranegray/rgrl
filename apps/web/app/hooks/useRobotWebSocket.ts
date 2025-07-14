@@ -25,7 +25,7 @@ interface UseRobotWebSocketReturn {
   sendJointPositionConfirmation: (positions: JointState) => void
 }
 
-export function useRobotWebSocket(serverUrl: string = 'ws://localhost:8080'): UseRobotWebSocketReturn {
+export function useRobotWebSocket(serverUrl: string = 'wss://code-dock-1045653961265.us-central1.run.app'): UseRobotWebSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
   const [logs, setLogs] = useState<string[]>([])
