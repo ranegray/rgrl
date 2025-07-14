@@ -1,64 +1,62 @@
-// app/courses/[slug]/lessons/[lessonSlug]/page.tsx
-import { db } from "@/app/lib/db"
-import { lessons, steps } from "@/app/lib/db/schema"
-import { and, eq } from "drizzle-orm"
+import { redirect } from 'next/navigation';
+import { currentUser } from '@clerk/nextjs/server';
+import { db } from '../../../../lib/db/index';
+import { eq, and, asc } from 'drizzle-orm';
+import { courses, modules, moduleContent, lessons, exercises, userExerciseProgress } from '../../../../lib/db/schema';
 
-// Note: This would need to be a client component to use hooks,
-// or you would need to pass the data to a client component.
-// For simplicity, we'll imagine this is a server component fetching initial data.
 
-export default async function LessonPage({
-    params,
-}: {
-    params: Promise<{ slug: string; lessonSlug: string }>
-}) {
-    const { lessonSlug } = await params
-
-    let lesson: typeof lessons.$inferSelect | null = null
-    let lessonSteps: (typeof steps.$inferSelect)[] = []
-
-    try {
-        [lesson] = await db
-            .select()
-            .from(lessons)
-            .where(and(eq(lessons.slug, lessonSlug)))
-            .limit(1)
-        
-        if (!lesson) {
-            throw new Error(`Lesson with slug ${lessonSlug} not found`)
-        }
-        
-        lessonSteps = await db
-            .select()
-            .from(steps)
-            .where(eq(steps.lessonId, lesson.id))
-            .orderBy(steps.orderIndex)
-    } catch (error) {
-        console.error("Error fetching lesson data:", error)
-    }
-
-    // This is a simplified example. You'll need to handle state for the IDE and terminal.
-    // const [code, setCode] = useState(lessonSteps[0]?.initialCode || "");
-
-    return (
-        <div className="flex">
-            <div className="w-1/3">
-                {/* You can adapt the LessonPane to show the steps */}
-                {/* <LessonPane exercise={lesson} /> */}
-                <h2>{lesson?.title}</h2>
-                <div
-                    dangerouslySetInnerHTML={{ __html: lesson?.content || "" }}
-                />
-                <h3>Steps:</h3>
-                <ul>
-                    {lessonSteps.map((step) => (
-                        <li key={step.id}>{step.title}</li>
-                    ))}
-                </ul>
-            </div>
-            <div className="w-2/3">
-                {/* <IDE code={code} setCode={setCode} onRun={() => {}} /> */}
-            </div>
-        </div>
+async function getNextExerciseSlug(
+  userId: string,
+  courseSlug: string, 
+  lessonSlug: string // This is moduleContent.slug where contentType = 'lesson'
+): Promise<string | null> {
+  
+  const result = await db
+    .select({
+      exerciseSlug: exercises.slug,
+      exerciseOrder: exercises.orderIndex,
+      status: userExerciseProgress.status,
+    })
+    .from(courses)
+    .innerJoin(modules, eq(modules.courseId, courses.id))
+    .innerJoin(moduleContent, eq(moduleContent.moduleId, modules.id))
+    .innerJoin(lessons, eq(lessons.moduleContentId, moduleContent.id))
+    .innerJoin(exercises, eq(exercises.lessonId, lessons.id))
+    .leftJoin(
+      userExerciseProgress, 
+      and(
+        eq(userExerciseProgress.exerciseId, exercises.id),
+        eq(userExerciseProgress.userId, userId)
+      )
     )
+    .where(
+      and(
+        eq(courses.slug, courseSlug),
+        eq(moduleContent.slug, lessonSlug), // moduleContent.slug = "lesson slug"
+        eq(moduleContent.contentType, 'lesson')
+      )
+    )
+    .orderBy(asc(exercises.orderIndex));
+
+  if (!result.length) return null;
+
+  // Find first exercise that's not completed
+  const nextExercise = result.find(r => r.status !== 'completed');
+
+  // If all completed, go to last exercise
+  return nextExercise?.exerciseSlug || result[result.length - 1].exerciseSlug;
+}
+
+
+export default async function LessonPage({ params }: { params: { courseSlug: string, lessonSlug: string } }) {
+  const { courseSlug, lessonSlug } = params;
+  
+  const user = await currentUser();
+  if (!user) redirect('/sign-in');
+
+  const exerciseSlug = await getNextExerciseSlug(user.id, courseSlug, lessonSlug);
+  
+  if (!exerciseSlug) redirect('/courses');
+  
+  redirect(`/courses/${courseSlug}/lesson/${lessonSlug}/exercise/${exerciseSlug}`);
 }

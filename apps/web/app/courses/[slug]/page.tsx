@@ -1,9 +1,15 @@
-// app/courses/[slug]/page.tsx
 import { db } from "@/app/lib/db"
-import { courses, lessons } from "@/app/lib/db/schema"
+import {
+    courses,
+    modules,
+    moduleContent,
+    ModuleContentSelect,
+} from "@/app/lib/db/schema"
 import { eq } from "drizzle-orm"
 import Link from "next/link"
 import { BookOpen, Clock, Users } from "lucide-react"
+import React from "react"
+import ModuleComponent from "./ModuleComponent"
 
 export default async function CoursePage({
     params,
@@ -13,7 +19,8 @@ export default async function CoursePage({
     const { slug } = await params
 
     let course: typeof courses.$inferSelect | null = null
-    let courseLessons: (typeof lessons.$inferSelect)[] = []
+    let courseModules: (typeof modules.$inferSelect)[] = []
+    const moduleContents: Record<string, Array<ModuleContentSelect>> = {}
 
     try {
         ;[course] = await db
@@ -26,11 +33,20 @@ export default async function CoursePage({
             throw new Error("Course not found")
         }
 
-        courseLessons = await db
+        courseModules = await db
             .select()
-            .from(lessons)
-            .where(eq(lessons.courseId, course.id))
-            .orderBy(lessons.orderIndex)
+            .from(modules)
+            .where(eq(modules.courseId, course.id))
+            .orderBy(modules.orderIndex)
+
+        for (const mod of courseModules) {
+            const contentsForModule = await db
+                .select()
+                .from(moduleContent)
+                .where(eq(moduleContent.moduleId, mod.id))
+
+            moduleContents[mod.id] = contentsForModule
+        }
     } catch (error) {
         console.error("Error fetching course data:", error)
     }
@@ -56,12 +72,12 @@ export default async function CoursePage({
                             <div className="flex items-center gap-6 text-sm text-gray-500">
                                 <div className="flex items-center gap-2">
                                     <BookOpen className="h-4 w-4" />
-                                    <span>{courseLessons.length} lessons</span>
+                                    <span>{courseModules.length} modules</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Clock className="h-4 w-4" />
                                     <span>
-                                        ~{courseLessons.length * 30} minutes
+                                        ~{courseModules.length * 30} minutes
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -76,46 +92,18 @@ export default async function CoursePage({
                 {/* Lessons Section */}
                 <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-8">
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                        Course Lessons
+                        Course Modules
                     </h2>
-                    {courseLessons.length > 0 ? (
+                    {courseModules.length > 0 ? (
                         <div className="space-y-4">
-                            {courseLessons.map((lesson, index) => (
-                                <Link
-                                    key={lesson.id}
-                                    href={`/courses/${course?.slug}/lessons/${lesson.slug}`}
-                                    className="block bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-orange-200 transition-all duration-200 group"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex-shrink-0 w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-semibold text-sm">
-                                            {index + 1}
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-lg font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
-                                                {lesson.title}
-                                            </h3>
-                                            <p className="text-gray-500 text-sm mt-1">
-                                                Lesson {index + 1} • Interactive
-                                                tutorial
-                                            </p>
-                                        </div>
-                                        <div className="text-gray-400 group-hover:text-orange-500 transition-colors">
-                                            <svg
-                                                className="w-5 h-5"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M9 5l7 7-7 7"
-                                                />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                </Link>
+                            {courseModules.map((mod, index) => (
+                                <ModuleComponent
+                                    key={mod.id}
+                                    module={mod}
+                                    courseSlug={slug}
+                                    contents={moduleContents[mod.id] || []}
+                                    index={index}
+                                />
                             ))}
                         </div>
                     ) : (

@@ -1,6 +1,6 @@
 // app/courses/page.tsx
 import { db } from "@/app/lib/db"
-import { courses, type CourseSelect } from "@/app/lib/db/schema"
+import { courses, type CourseSelect } from "@/app/lib/db/old_schema"
 // import { eq } from "drizzle-orm";
 import { SignedOut } from "@clerk/nextjs"
 import Link from "next/link"

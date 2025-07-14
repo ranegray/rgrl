@@ -1,16 +1,16 @@
 import { currentUser } from "@clerk/nextjs/server"
 import { eq } from "drizzle-orm"
 import { db } from "../lib/db/index"
-import { user } from "../lib/db/schema"
+import { user } from "../lib/db/old_schema"
 import { redirect } from "next/navigation"
 
 export default async function NewUserPage() {
     const newUser = await currentUser()
-    
+
     if (!newUser) {
         redirect("/sign-in")
     }
-    
+
     const match = await db
         .select()
         .from(user)

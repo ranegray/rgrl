@@ -7,7 +7,7 @@ import {
     userProgress,
     type CourseSelect,
     type UserProgressSelect,
-} from "../lib/db/schema"
+} from "../lib/db/old_schema"
 
 export default async function Dashboard() {
     const user = await currentUser()
