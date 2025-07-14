@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-
+const PYTHON_WEB_SOCKET_SERVICEURL = 'wss://code-dock-1045653961265.us-central1.run.app'
 interface JointState {
   [key: string]: number
 }
@@ -25,7 +25,7 @@ interface UseRobotWebSocketReturn {
   sendJointPositionConfirmation: (positions: JointState) => void
 }
 
-export function useRobotWebSocket(serverUrl: string = 'wss://code-dock-1045653961265.us-central1.run.app'): UseRobotWebSocketReturn {
+export function useRobotWebSocket(serverUrl: string = PYTHON_WEB_SOCKET_SERVICEURL): UseRobotWebSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
   const [logs, setLogs] = useState<string[]>([])
