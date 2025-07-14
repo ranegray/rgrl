@@ -14,9 +14,9 @@ import ModuleComponent from "./ModuleComponent"
 export default async function CoursePage({
     params,
 }: {
-    params: Promise<{ slug: string }>
+    params: Promise<{ courseSlug: string }>
 }) {
-    const { slug } = await params
+    const { courseSlug } = await params
 
     let course: typeof courses.$inferSelect | null = null
     let courseModules: (typeof modules.$inferSelect)[] = []
@@ -26,7 +26,7 @@ export default async function CoursePage({
         ;[course] = await db
             .select()
             .from(courses)
-            .where(eq(courses.slug, slug))
+            .where(eq(courses.slug, courseSlug))
             .limit(1)
 
         if (!course) {
@@ -100,7 +100,7 @@ export default async function CoursePage({
                                 <ModuleComponent
                                     key={mod.id}
                                     module={mod}
-                                    courseSlug={slug}
+                                    courseSlug={courseSlug}
                                     contents={moduleContents[mod.id] || []}
                                     index={index}
                                 />
