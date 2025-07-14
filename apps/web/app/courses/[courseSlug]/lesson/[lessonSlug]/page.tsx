@@ -12,14 +12,49 @@ import {
     userExerciseProgress,
 } from "../../../../lib/db/schema"
 
+async function updateLessonProgress(userId: string, moduleContentId: string) {
+    const existing = await db
+        .select()
+        .from(userProgress)
+        .where(
+            and(
+                eq(userProgress.userId, userId),
+                eq(userProgress.moduleContentId, moduleContentId)
+            )
+        )
+        .limit(1)
+
+    if (existing.length > 0) {
+        // Update existing record
+        await db
+            .update(userProgress)
+            .set({ lastActiveAt: new Date() })
+            .where(
+                and(
+                    eq(userProgress.userId, userId),
+                    eq(userProgress.moduleContentId, moduleContentId)
+                )
+            )
+    } else {
+        // Insert new record
+        await db.insert(userProgress).values({
+            userId,
+            moduleContentId,
+            status: "in_progress",
+            lastActiveAt: new Date(),
+        })
+    }
+}
+
 async function getNextExerciseSlug(
     userId: string,
     courseSlug: string,
-    lessonSlug: string // This is moduleContent.slug where contentType = 'lesson'
+    lessonSlug: string
 ): Promise<string | null> {
     const result = await db
         .select({
             lessonId: lessons.id,
+            moduleContentId: moduleContent.id, // Add this for userProgress
             exerciseId: exercises.id,
             exerciseSlug: exercises.slug,
             exerciseOrder: exercises.orderIndex,
@@ -40,7 +75,7 @@ async function getNextExerciseSlug(
         .where(
             and(
                 eq(courses.slug, courseSlug),
-                eq(moduleContent.slug, lessonSlug), // moduleContent.slug = "lesson slug"
+                eq(moduleContent.slug, lessonSlug),
                 eq(moduleContent.contentType, "lesson")
             )
         )
@@ -48,7 +83,8 @@ async function getNextExerciseSlug(
 
     if (!result.length) return null
 
-    // TODO logic neeeds a bit of work
+    await updateLessonProgress(userId, result[0].moduleContentId)
+
     // Find first exercise that's not completed
     const nextExercise = result.find((r) => r.status !== "completed")
     const targetExercise = nextExercise || result[result.length - 1]
@@ -65,7 +101,7 @@ async function getNextExerciseSlug(
                 startedAt: new Date(),
                 lastActiveAt: new Date(),
             })
-            .onConflictDoNothing() // In case of race condition
+            .onConflictDoNothing()
     }
 
     return targetExercise.exerciseSlug
@@ -77,7 +113,6 @@ export default async function LessonPage({
     params: { courseSlug: string; lessonSlug: string }
 }) {
     const { courseSlug, lessonSlug } = await params
-
     const user = await currentUser()
     if (!user) redirect("/sign-in")
 
