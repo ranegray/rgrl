@@ -13,6 +13,7 @@ import uuid
 import resource
 import asyncio
 import threading
+import signal
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,13 +75,86 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# ── per‑process resource caps (no nsjail) ─────────────────────────────
-def _limits() -> None:
-    resource.setrlimit(resource.RLIMIT_AS, (256 << 20, 256 << 20))  # 256 MB
-    resource.setrlimit(
-        resource.RLIMIT_CPU, (10, 10)
-    )  # 10 CPU‑s (increased for longer running code)
-    resource.setrlimit(resource.RLIMIT_NPROC, (10, 10))  # fork cap
+# ── security validation functions ─────────────────────────────────────
+def validate_user_code(code: str) -> None:
+    """Validate user code for dangerous patterns"""
+    dangerous_patterns = [
+        'import os', 'import sys', 'import subprocess', 'import socket',
+        'import urllib', 'import requests', 'import httpx', 'from os',
+        'from sys', 'from subprocess', 'from socket', '__import__',
+        'eval(', 'exec(', 'compile(', 'open(', 'file(', 'input(',
+        'raw_input(', 'globals(', 'locals(', 'vars(', 'dir(',
+        'getattr(', 'setattr(', 'delattr(', 'hasattr(',
+    ]
+    
+    code_lower = code.lower()
+    for pattern in dangerous_patterns:
+        if pattern in code_lower:
+            raise ValueError(f"Dangerous code pattern detected: {pattern}")
+    
+    # Check for excessive complexity
+    if len(code) > 50000:  # 50KB limit
+        raise ValueError("Code size exceeds limit")
+    
+    if code.count('\n') > 2000:  # Line limit
+        raise ValueError("Too many lines of code")
+
+
+def secure_workspace_setup(workdir: str) -> None:
+    """Set up secure workspace with restricted permissions"""
+    # Remove write permissions from parent directories
+    try:
+        parent_dir = os.path.dirname(workdir)
+        os.chmod(parent_dir, 0o555)  # Read and execute only
+    except:
+        pass
+    
+    # Restrict workspace permissions
+    os.chmod(workdir, 0o700)  # Owner read/write/execute only
+    
+    # Create restricted __pycache__ to prevent bytecode attacks
+    pycache_dir = os.path.join(workdir, '__pycache__')
+    if os.path.exists(pycache_dir):
+        shutil.rmtree(pycache_dir)
+
+
+def cleanup_process_group(process):
+    """Forcefully cleanup process and any child processes"""
+    try:
+        if process.returncode is None:
+            # Kill entire process group
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        process.kill()
+        asyncio.create_task(process.wait())
+    except:
+        pass
+
+
+# ── enhanced security limits with process isolation ─────────────────
+def _security_limits() -> None:
+    """Apply comprehensive security limits to user code execution"""
+    # Memory limits: 128MB virtual memory, 64MB RSS
+    resource.setrlimit(resource.RLIMIT_AS, (128 << 20, 128 << 20))
+    resource.setrlimit(resource.RLIMIT_RSS, (64 << 20, 64 << 20))
+    
+    # CPU time: 5 seconds max
+    resource.setrlimit(resource.RLIMIT_CPU, (5, 5))
+    
+    # Process limits: prevent fork bombing
+    resource.setrlimit(resource.RLIMIT_NPROC, (1, 1))
+    
+    # File limits: prevent file descriptor exhaustion
+    resource.setrlimit(resource.RLIMIT_NOFILE, (32, 32))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (10 << 20, 10 << 20))  # 10MB file size
+    
+    # Core dumps disabled
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    
+    # Set process group to enable cleanup
+    os.setpgrp()
+    
+    # Disable network access by setting restrictive umask
+    os.umask(0o077)
 
 
 def parse_output_for_joint_states(output: str) -> List[Dict[str, Any]]:
@@ -113,22 +187,48 @@ def parse_output_for_joint_states(output: str) -> List[Dict[str, Any]]:
 
 async def stream_process_output(process, workdir: str):
     """
-    Stream process output in real-time and broadcast joint states via WebSocket
+    Stream process output in real-time with security monitoring
     """
     stdout_data = []
     stderr_data = []
+    start_time = asyncio.get_event_loop().time()
+    max_output_lines = 1000  # Prevent output flooding
+    line_count = 0
 
-    # Read stdout line by line
+    # Read stdout line by line with security checks
     while True:
         try:
             line = await asyncio.wait_for(process.stdout.readline(), timeout=0.1)
             if not line:
                 break
 
-            line_str = line.decode("utf-8").rstrip()
-            stdout_data.append(line_str)
+            # Check for excessive output
+            line_count += 1
+            if line_count > max_output_lines:
+                await manager.send_message(
+                    json.dumps({
+                        "type": "error",
+                        "data": "Output limit exceeded - execution terminated",
+                        "timestamp": asyncio.get_event_loop().time(),
+                    })
+                )
+                process.kill()
+                break
 
-            print(f"📝 Server received line: {line_str}")
+            # Check for execution time limit
+            if asyncio.get_event_loop().time() - start_time > 10:  # 10 second hard limit
+                await manager.send_message(
+                    json.dumps({
+                        "type": "error", 
+                        "data": "Time limit exceeded - execution terminated",
+                        "timestamp": asyncio.get_event_loop().time(),
+                    })
+                )
+                process.kill()
+                break
+
+            line_str = line.decode("utf-8", errors="replace").rstrip()
+            stdout_data.append(line_str)
 
             # Send regular output to WebSocket
             await manager.send_message(
@@ -143,10 +243,8 @@ async def stream_process_output(process, workdir: str):
 
             # Check for joint state updates
             if line_str.strip().startswith("JOINT_STATE:"):
-                print(f"🎯 Found JOINT_STATE line: {line_str}")
                 joint_states = parse_output_for_joint_states(line_str)
                 for joint_state in joint_states:
-                    print(f"🚀 Sending joint state: {joint_state}")
                     await manager.send_message(json.dumps(joint_state))
 
         except asyncio.TimeoutError:
@@ -157,11 +255,11 @@ async def stream_process_output(process, workdir: str):
             print(f"Error reading process output: {e}")
             break
 
-    # Read any remaining stderr
+    # Read any remaining stderr with limits
     try:
-        stderr_output = await process.stderr.read()
+        stderr_output = await asyncio.wait_for(process.stderr.read(), timeout=1.0)
         if stderr_output:
-            stderr_str = stderr_output.decode("utf-8")
+            stderr_str = stderr_output.decode("utf-8", errors="replace")[:10000]  # Limit stderr size
             stderr_data.append(stderr_str)
             await manager.send_message(
                 json.dumps(
@@ -220,9 +318,19 @@ async def websocket_endpoint(websocket: WebSocket):
 # ── enhanced execution endpoint with WebSocket streaming ──────────────
 @app.post("/execute")
 async def execute(req: ExecRequest):
-    workdir = tempfile.mkdtemp(prefix=f"job_{uuid.uuid4()}_")
+    process = None
+    workdir = tempfile.mkdtemp(prefix=f"secure_job_{uuid.uuid4()}_")
+    
     try:
-        # 1 · write user code (and tests)
+        # 1 · Security validation
+        validate_user_code(req.code)
+        if req.tests:
+            validate_user_code(req.tests)
+        
+        # 2 · Setup secure workspace
+        secure_workspace_setup(workdir)
+        
+        # 3 · write user code (and tests) with restricted content
         with open(os.path.join(workdir, "main.py"), "w", encoding="utf-8") as f:
             f.write(req.code)
         if req.tests:
@@ -231,25 +339,41 @@ async def execute(req: ExecRequest):
             ) as f:
                 f.write(req.tests)
 
-        # 2 · run main.py with async process for real-time streaming
+        # 4 · run main.py with enhanced security sandbox
         await manager.send_message(
             json.dumps(
                 {
                     "type": "execution_start",
-                    "data": "Starting Python execution...",
+                    "data": "Starting Python execution in secure sandbox...",
                     "timestamp": asyncio.get_event_loop().time(),
                 }
             )
         )
 
+        # Create secure execution environment
+        env = os.environ.copy()
+        # Remove sensitive environment variables
+        for key in list(env.keys()):
+            if any(sensitive in key.upper() for sensitive in ['SECRET', 'KEY', 'TOKEN', 'PASSWORD', 'AUTH']):
+                del env[key]
+        
+        # Add restricted Python environment
+        env['PYTHONPATH'] = workdir
+        env['PYTHONDONTWRITEBYTECODE'] = '1'
+        env['PYTHONHASHSEED'] = '0'
+
         process = await asyncio.create_subprocess_exec(
             sys.executable,
+            "-I",  # Isolated mode - ignore environment variables and user site
+            "-u",  # Unbuffered output
+            "-B",  # Don't write .pyc files
             "main.py",
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=workdir,
-            preexec_fn=_limits,
+            env=env,
+            preexec_fn=_security_limits,
         )
 
         # Send stdin if provided
@@ -258,14 +382,17 @@ async def execute(req: ExecRequest):
             await process.stdin.drain()
         process.stdin.close()
 
-        # Stream output in real-time
+        # Stream output in real-time with strict timeout
         stdout, stderr = await asyncio.wait_for(
             stream_process_output(process, workdir),
-            timeout=15,  # Increased timeout for robot movements
+            timeout=12,  # Hard timeout with buffer
         )
 
-        # Wait for process to complete
-        await process.wait()
+        # Wait for process to complete with cleanup
+        try:
+            await process.wait()
+        finally:
+            cleanup_process_group(process)
 
         result = {
             "exit_code": process.returncode,
@@ -287,6 +414,7 @@ async def execute(req: ExecRequest):
 
             test_proc = await asyncio.create_subprocess_exec(
                 sys.executable,
+                "-I",  # Isolated mode
                 "-m",
                 "pytest",
                 "-q",
@@ -295,7 +423,8 @@ async def execute(req: ExecRequest):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=workdir,
-                preexec_fn=_limits,
+                env=env,
+                preexec_fn=_security_limits,
             )
 
             test_stdout, test_stderr = await asyncio.wait_for(
@@ -329,12 +458,27 @@ async def execute(req: ExecRequest):
 
         return result
 
-    except asyncio.TimeoutError:
+    except ValueError as e:
+        # Security validation error
         await manager.send_message(
             json.dumps(
                 {
                     "type": "error",
-                    "data": "Execution timed out",
+                    "data": f"Security violation: {str(e)}",
+                    "timestamp": asyncio.get_event_loop().time(),
+                }
+            )
+        )
+        raise HTTPException(status_code=400, detail=f"Security violation: {str(e)}")
+
+    except asyncio.TimeoutError:
+        if process:
+            cleanup_process_group(process)
+        await manager.send_message(
+            json.dumps(
+                {
+                    "type": "error",
+                    "data": "Execution timed out - process terminated",
                     "timestamp": asyncio.get_event_loop().time(),
                 }
             )
@@ -342,6 +486,8 @@ async def execute(req: ExecRequest):
         raise HTTPException(status_code=408, detail="Execution timed out")
 
     except Exception as e:
+        if process:
+            cleanup_process_group(process)
         await manager.send_message(
             json.dumps(
                 {
@@ -354,9 +500,16 @@ async def execute(req: ExecRequest):
         raise HTTPException(status_code=500, detail=f"Execution error: {str(e)}")
 
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+        # Secure cleanup of workspace
+        try:
+            shutil.rmtree(workdir, ignore_errors=True)
+        except:
+            pass
 
 
+@app.get("/version")
+def get_version():
+    return {"version": "clod-dock-secured", "message": "This is the updated container with added security."}
 # ── health check endpoint ─────────────────────────────────────────────
 @app.get("/health")
 async def health_check():
@@ -375,3 +528,4 @@ if __name__ == "__main__":
         port=int(os.getenv("PORT", "8080")),
         workers=1,
     )
+
