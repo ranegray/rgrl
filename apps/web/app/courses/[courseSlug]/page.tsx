@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm"
 import Link from "next/link"
 import { BookOpen, Clock, Users } from "lucide-react"
 import React from "react"
-import ModuleComponent from "./ModuleComponent"
+import ModuleComponent from "../../components/ui/ModuleComponent"
 
 export default async function CoursePage({
     params,

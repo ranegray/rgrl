@@ -58,6 +58,8 @@ const faqs = [
 ]
 
 export default function Home() {
+    // TODO add redirected logic if user is logged in
+    
     return (
         <>
             <main className="flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-orange-50 min-h-screen">

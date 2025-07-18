@@ -9,10 +9,11 @@ interface LogEntry {
     message: string
 }
 
+// TODO add types for logs
 interface TerminalProps {
-    logs: (string | LogEntry)[]
-    onCommand: (command: string) => void
-    isRunning: boolean
+    logs?: (string | LogEntry)[]
+    onCommand?: (command: string) => void
+    isRunning?: boolean
 }
 
 export default function Terminal({
@@ -122,7 +123,7 @@ export default function Terminal({
                     </div>
 
                     {/* Log Messages */}
-                    {logs.map((log, index) => {
+                    {logs?.map((log, index) => {
                         const logEntry =
                             typeof log === "string" ? { message: log } : log
                         return (
