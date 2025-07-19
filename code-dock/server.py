@@ -344,7 +344,7 @@ async def execute(req: ExecRequest):
             json.dumps(
                 {
                     "type": "execution_start",
-                    "data": "Starting Python execution in secure sandbox...",
+                    "data": "Running...",
                     "timestamp": asyncio.get_event_loop().time(),
                 }
             )
