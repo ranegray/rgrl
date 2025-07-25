@@ -25,7 +25,7 @@ interface UseRobotWebSocketReturn {
   sendJointPositionConfirmation: (positions: JointState) => void
 }
 
-export function useRobotWebSocket(serverUrl: string = PYTHON_WEB_SOCKET_SERVICEURL): UseRobotWebSocketReturn {
+export function useRobotWebSocket(sessionId?: string, serverUrl: string = PYTHON_WEB_SOCKET_SERVICEURL): UseRobotWebSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
   const [logs, setLogs] = useState<string[]>([])
@@ -59,8 +59,8 @@ export function useRobotWebSocket(serverUrl: string = PYTHON_WEB_SOCKET_SERVICEU
     setLastError(null)
 
     try {
-      const wsUrl = `${serverUrl}/ws`
-      console.log('Connecting to WebSocket:', wsUrl)
+      const wsUrl = sessionId ? `${serverUrl}/ws?session_id=${sessionId}` : `${serverUrl}/ws`
+      console.log('Connecting to WebSocket:', wsUrl, sessionId ? `with session ${sessionId}` : 'without session')
 
       wsRef.current = new WebSocket(wsUrl)
 
@@ -172,7 +172,7 @@ export function useRobotWebSocket(serverUrl: string = PYTHON_WEB_SOCKET_SERVICEU
       setConnectionStatus('error')
       addLog('Failed to connect to robot server', 'error')
     }
-  }, [serverUrl, addLog])
+  }, [serverUrl, addLog, sessionId])
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -202,7 +202,8 @@ export function useRobotWebSocket(serverUrl: string = PYTHON_WEB_SOCKET_SERVICEU
         body: JSON.stringify({
           code,
           stdin,
-          tests: null
+          tests: null,
+          session_id: sessionId
         }),
         // Reduce timeout since we removed artificial delays
         signal: AbortSignal.timeout(10000)
@@ -220,7 +221,7 @@ export function useRobotWebSocket(serverUrl: string = PYTHON_WEB_SOCKET_SERVICEU
       setLastError(errorMessage)
       throw err
     }
-  }, [isConnected, serverUrl, addLog])
+  }, [isConnected, serverUrl, addLog, sessionId])
 
   // Initialize connection
   useEffect(() => {
@@ -246,12 +247,13 @@ export function useRobotWebSocket(serverUrl: string = PYTHON_WEB_SOCKET_SERVICEU
       const message = {
         type: 'joint_position_confirmed',
         data: positions,
+        session_id: sessionId,
         timestamp: Date.now()
       }
       wsRef.current.send(JSON.stringify(message))
-      console.log('📤 Sent joint position confirmation:', positions)
+      console.log('📤 Sent joint position confirmation:', positions, sessionId ? `for session ${sessionId}` : '')
     }
-  }, [])
+  }, [sessionId])
 
   return {
     isConnected,

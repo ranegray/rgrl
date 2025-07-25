@@ -37,35 +37,63 @@ class ExecRequest(BaseModel):
     code: str  # main.py source
     stdin: str | None = ""  # optional stdin
     tests: str | None = None  # optional pytest file
+    session_id: str | None = None  # optional session identifier
 
 
-# ── WebSocket connection manager ──────────────────────────────────────
+# ── Session-aware WebSocket connection manager ───────────────────────
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.session_connections: Dict[str, List[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, session_id: str = None):
         await websocket.accept()
         self.active_connections.append(websocket)
-        print(f"WebSocket connected. Total connections: {len(self.active_connections)}")
+        
+        # Track session-based connections
+        if session_id:
+            if session_id not in self.session_connections:
+                self.session_connections[session_id] = []
+            self.session_connections[session_id].append(websocket)
+            print(f"WebSocket connected for session {session_id}. Total connections: {len(self.active_connections)}")
+        else:
+            print(f"WebSocket connected (no session). Total connections: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+        
+        # Remove from session tracking
+        for session_id, connections in self.session_connections.items():
+            if websocket in connections:
+                connections.remove(websocket)
+                if not connections:  # Clean up empty session
+                    del self.session_connections[session_id]
+                break
+        
         print(
             f"WebSocket disconnected. Total connections: {len(self.active_connections)}"
         )
 
-    async def send_message(self, message: str):
-        if self.active_connections:
+    async def send_message(self, message: str, session_id: str = None):
+        target_connections = []
+        
+        if session_id and session_id in self.session_connections:
+            # Send only to connections for this session
+            target_connections = self.session_connections[session_id]
+        else:
+            # Send to all connections (fallback behavior)
+            target_connections = self.active_connections
+        
+        if target_connections:
             disconnected = []
-            for connection in self.active_connections:
+            for connection in target_connections:
                 try:
                     await connection.send_text(message)
                 except WebSocketDisconnect:
                     disconnected.append(connection)
                 except Exception as e:
-                    print(f"Error sending message: {e}")
+                    print(f"Error sending message to session {session_id}: {e}")
 
             # Remove disconnected connections
             for conn in disconnected:
@@ -185,7 +213,7 @@ def parse_output_for_joint_states(output: str) -> List[Dict[str, Any]]:
     return joint_states
 
 
-async def stream_process_output(process, workdir: str):
+async def stream_process_output(process, workdir: str, session_id: str = None):
     """
     Stream process output in real-time with security monitoring
     """
@@ -210,7 +238,8 @@ async def stream_process_output(process, workdir: str):
                         "type": "error",
                         "data": "Output limit exceeded - execution terminated",
                         "timestamp": asyncio.get_event_loop().time(),
-                    })
+                    }),
+                    session_id=session_id
                 )
                 process.kill()
                 break
@@ -222,7 +251,8 @@ async def stream_process_output(process, workdir: str):
                         "type": "error", 
                         "data": "Time limit exceeded - execution terminated",
                         "timestamp": asyncio.get_event_loop().time(),
-                    })
+                    }),
+                    session_id=session_id
                 )
                 process.kill()
                 break
@@ -230,7 +260,7 @@ async def stream_process_output(process, workdir: str):
             line_str = line.decode("utf-8", errors="replace").rstrip()
             stdout_data.append(line_str)
 
-            # Send regular output to WebSocket
+            # Send regular output to WebSocket for this session only
             await manager.send_message(
                 json.dumps(
                     {
@@ -238,14 +268,15 @@ async def stream_process_output(process, workdir: str):
                         "data": line_str,
                         "timestamp": asyncio.get_event_loop().time(),
                     }
-                )
+                ),
+                session_id=session_id
             )
 
             # Check for joint state updates
             if line_str.strip().startswith("JOINT_STATE:"):
                 joint_states = parse_output_for_joint_states(line_str)
                 for joint_state in joint_states:
-                    await manager.send_message(json.dumps(joint_state))
+                    await manager.send_message(json.dumps(joint_state), session_id=session_id)
 
         except asyncio.TimeoutError:
             # Check if process is still running
@@ -268,7 +299,8 @@ async def stream_process_output(process, workdir: str):
                         "data": stderr_str,
                         "timestamp": asyncio.get_event_loop().time(),
                     }
-                )
+                ),
+                session_id=session_id
             )
     except:
         pass
@@ -278,8 +310,8 @@ async def stream_process_output(process, workdir: str):
 
 # ── WebSocket endpoint for real-time communication ───────────────────
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, session_id: str = None):
+    await manager.connect(websocket, session_id)
     try:
         while True:
             # Listen for incoming messages from the frontend
@@ -293,7 +325,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     joint_positions = msg_data.get("data", {})
                     print(f"📥 Received joint position confirmation: {joint_positions}")
 
-                    # Broadcast confirmation to all connected clients (including Python execution context)
+                    # Send confirmation only to this session
+                    session_id = msg_data.get("session_id")
                     await manager.send_message(
                         json.dumps(
                             {
@@ -301,7 +334,8 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "data": joint_positions,
                                 "timestamp": asyncio.get_event_loop().time(),
                             }
-                        )
+                        ),
+                        session_id=session_id
                     )
 
                 else:
@@ -347,7 +381,8 @@ async def execute(req: ExecRequest):
                     "data": "Running...",
                     "timestamp": asyncio.get_event_loop().time(),
                 }
-            )
+            ),
+            session_id=req.session_id
         )
 
         # Create secure execution environment
@@ -384,7 +419,7 @@ async def execute(req: ExecRequest):
 
         # Stream output in real-time with strict timeout
         stdout, stderr = await asyncio.wait_for(
-            stream_process_output(process, workdir),
+            stream_process_output(process, workdir, req.session_id),
             timeout=12,  # Hard timeout with buffer
         )
 
@@ -409,7 +444,8 @@ async def execute(req: ExecRequest):
                         "data": "Running tests...",
                         "timestamp": asyncio.get_event_loop().time(),
                     }
-                )
+                ),
+                session_id=req.session_id
             )
 
             test_proc = await asyncio.create_subprocess_exec(
@@ -453,7 +489,8 @@ async def execute(req: ExecRequest):
                     "data": f'Execution finished with exit code: {result["exit_code"]}',
                     "timestamp": asyncio.get_event_loop().time(),
                 }
-            )
+            ),
+            session_id=req.session_id
         )
 
         return result
@@ -467,7 +504,8 @@ async def execute(req: ExecRequest):
                     "data": f"Security violation: {str(e)}",
                     "timestamp": asyncio.get_event_loop().time(),
                 }
-            )
+            ),
+            session_id=req.session_id
         )
         raise HTTPException(status_code=400, detail=f"Security violation: {str(e)}")
 
@@ -481,7 +519,8 @@ async def execute(req: ExecRequest):
                     "data": "Execution timed out - process terminated",
                     "timestamp": asyncio.get_event_loop().time(),
                 }
-            )
+            ),
+            session_id=req.session_id
         )
         raise HTTPException(status_code=408, detail="Execution timed out")
 
@@ -495,7 +534,8 @@ async def execute(req: ExecRequest):
                     "data": f"Execution error: {str(e)}",
                     "timestamp": asyncio.get_event_loop().time(),
                 }
-            )
+            ),
+            session_id=req.session_id
         )
         raise HTTPException(status_code=500, detail=f"Execution error: {str(e)}")
 

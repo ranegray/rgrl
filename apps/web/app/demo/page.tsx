@@ -5,7 +5,7 @@ import LessonPane from "../components/ui/LessonPane"
 import IDE from "../components/ui/IDE"
 import Terminal from "../components/ui/Terminal"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import URDFViewer from "../components/ui/URDFViewer"
 import { useRobotWebSocket } from "../hooks/useRobotWebSocket"
 
@@ -112,7 +112,13 @@ if __name__ == '__main__':
 export default function DemoPage() {
     const [code, setCode] = useState(mockExercise.code)
 
-    // Use the WebSocket hook for real-time robot control
+    // Generate a unique session ID for this component instance
+    const sessionId = useMemo(() => 
+        `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+        []
+    )
+
+    // Use the WebSocket hook for real-time robot control with session isolation
     const {
         connectionStatus,
         logs,
@@ -121,7 +127,7 @@ export default function DemoPage() {
         clearLogs,
         isRunning,
         sendJointPositionConfirmation,
-    } = useRobotWebSocket()
+    } = useRobotWebSocket(sessionId)
 
     const handleRun = useCallback(async () => {
         try {
